@@ -1,110 +1,35 @@
-// routes/telemetryRoutes.js
 const express = require('express');
 const router = express.Router();
-// const { listTelemetry } = require('../mongodb/mongoClient');
+const { db } = require('../firebase/firebase');
 
+router.get('/:type', async (req, res) => {
+  const { type } = req.params;
 
-/**
- * @author Gustavo Ferreira
- * @copyright Pomulo Ltd.
- * @version 1.0
- * @since 1.0
- * @date 2024-06-13
- * @swagger
- * tags:
- *   - name: Telemetry
- *     description: Operations related to telemetry queries
- * 
- * /telemetry/{channel}:
- *   get:
- *     summary: Lists the last 100 telemetry entries for a specific channel
- *     tags: [Telemetry]
- *     parameters:
- *       - in: path
- *         name: channel
- *         required: true
- *         schema:
- *           type: string
- *         description: The name of the channel for which telemetry entries should be listed
- *     responses:
- *       200:
- *         description: Successfully retrieved list of telemetry entries
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   date:
- *                     type: string
- *                     example: "12:34:56 12/06/2024"
- *                   light:
- *                     type: number
- *                     example: 150
- *                   temperature:
- *                     type: number
- *                     example: 22.5
- *                   channel:
- *                     type: string
- *                     example: "mqtt-mongo"
- *                   description:
- *                     type: string
- *                     example: "ESP32 with light and temperature sensor"
- *       500:
- *         description: Error querying telemetry entries
- */
-// router.get('/:channel', async (req, res) => {
-//     console.log("Lists the last 100 telemetry entries for a specific channel");
-//     let channel = req.params.channel;
-//     // let telemetries = await listTelemetry(channel);
-//     res.send(telemetries);
-// });
+  try {
+    const snapshot = await db.collection('mqtt_data')
+      .orderBy('timestamp', 'desc')
+      .limit(200)
+      .get();
 
-/**
- * @author Gustavo Ferreira
- * @copyright Pomulo Ltd.
- * @version 1.0
- * @since 1.0
- * @date 2024-06-13
- * @swagger
- * 
- * /telemetry:
- *   get:
- *     summary: Lists the last 100 telemetry entries from all channels
- *     tags: [Telemetry]
- *     responses:
- *       200:
- *         description: Successfully retrieved list of telemetry entries
- *         content:
- *           application/json:
- *             schema:
- *               type: array
- *               items:
- *                 type: object
- *                 properties:
- *                   date:
- *                     type: string
- *                     example: "12:34:56 12/06/2024"
- *                   light:
- *                     type: number
- *                     example: 150
- *                   temperature:
- *                     type: number
- *                     example: 22.5
- *                   channel:
- *                     type: string
- *                     example: "mqtt-mongo"
- *                   description:
- *                     type: string
- *                     example: "ESP32 with light and temperature sensor"
- *       500:
- *         description: Error querying telemetry entries
- */
-// router.get('/', async (req, res) => {
-//     console.log("Lists the last 100 telemetry entries from all channels")
-//     let telemetries = await listTelemetry();
-//     res.send(telemetries);
-// });
+    const filtered = snapshot.docs
+      .map(doc => doc.data())
+      .filter(entry => entry?.data?.device?.type === type)
+      .map(entry => {
+        return {
+          temperature: entry?.data?.data?.temperature || null,
+          deviceId: entry?.data?.device?.id || null,
+          model: entry?.data?.device?.model || null,
+          type: entry?.data?.device?.type || null,
+          topic: entry.topic || null,
+          timestamp: entry.timestamp?.toDate?.() || entry.processedAt || null
+        };
+      });
+
+    res.status(200).json(filtered);
+  } catch (e) {
+    console.error('❌ Lỗi khi lấy telemetry theo loại thiết bị:', e);
+    res.status(500).json({ message: 'Lỗi server' });
+  }
+});
 
 module.exports = router;

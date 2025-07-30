@@ -8,8 +8,8 @@ require('./mqtt/mqttClient');
 const { swaggerUi, specs } = require('./swagger');
 
 app.use(express.json());
-app.use('/telemetry', telemetryRoutes);
-app.use('/device', deviceRoutes);
+app.use('/api/telemetry', telemetryRoutes);
+app.use('/api/devices', deviceRoutes);
 
 // Swagger config
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
