@@ -1,72 +1,44 @@
 // routes/deviceRoutes.js
 const express = require('express');
 const router = express.Router();
-const validator = require('joi');
+const { db } = require('../firebase/firebase');
 
-// const { insertDevice } = require('../mongodb/mongoClient');
-
-/**
- * @author Gustavo Ferreira
- * @copyright Pomulo Ltd.
- * @version 1.0
- * @since 1.0
- * @date 2024-06-13
- * @swagger
- * tags:
- *   - name: Device
- *     description: Operations related to device management
- * 
- * /device:
- *   post:
- *     summary: Route that accepts necessary data to register a telemetry device in the database.
- *     tags: [Device]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               channel:
- *                 type: string
- *                 example: "mqtt-mongo"
- *               description:
- *                 type: string
- *                 example: "ESP32 with light and temperature sensor"
- *     responses:
- *       201:
- *         description: Device successfully inserted
- *       400:
- *         description: Required fields were not provided
- *       500:
- *         description: Error inserting device into the database
- */
-router.post('/', async (req, res) => {
+router.get('/', async (req, res) => {
     try {
+        const snapshot = await db.collection('mqtt_data')
+            .orderBy('timestamp', 'desc')
+            .limit(500)
+            .get();
 
-        // Define validation schema with Joi
-        const deviceSchema = validator.object({
-            channel: validator.string().required(),
-            description: validator.string().required()
+        const devicesMap = new Map();
+
+        snapshot.docs.forEach(doc => {
+            const entry = doc.data();
+            const deviceData = entry.data?.device || {};
+            const topic = entry.topic || 'unknown';
+            const timestamp = entry.timestamp?.toDate?.() || entry.processedAt;
+
+            // create a unique ID for the device based on the topic or id field
+            const id = deviceData.id || topic.replace(/[^\w]/g, '_');
+
+            // if this device is not already in the map, add it
+            if (!devicesMap.has(id)) {
+                devicesMap.set(id, {
+                    id,
+                    model: deviceData.model || null,
+                    firmware: deviceData.firmware || null,
+                    type: deviceData.type || null,
+                    lastSeen: timestamp,
+                    topic
+                });
+            }
         });
 
-        // Validate if the received form has the required fields filled
-        const { error, value } = deviceSchema.validate(req.body);
-
-        if (error) {
-            res.status(400).json({ message: 'Required fields were not provided', details: error.details });
-        } else {
-            // let success = await insertDevice(req.body);
-            // if (success) {
-            //     res.status(201).json({ message: 'Document successfully inserted' });
-            // } else {
-            //     res.status(500).json({ message: 'Error inserting device into the database' });
-            // }
-        }
-
-    } catch (error) {
-        console.error('Error inserting document into MongoDB:', error);
-        res.status(500).json({ message: 'Error inserting document into MongoDB' });
+        const devices = Array.from(devicesMap.values());
+        res.status(200).json(devices);
+    } catch (e) {
+        console.error('Err when fetching devices:', e);
+        res.status(500).json({ message: 'Server error' });
     }
 });
 

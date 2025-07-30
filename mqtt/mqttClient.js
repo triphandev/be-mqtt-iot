@@ -1,6 +1,6 @@
 const mqtt = require('mqtt');
-const { MQTT_URL, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD, MQTT_TOPIC } = require('../config');
-const { admin, db } = require('../firebase/firebase');
+const { MQTT_URL, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD } = require('../config');
+const { admin, db, realtimeDb } = require('../firebase/firebase');
 
 const options = {
     clientId: `client_${Math.random().toString(16).substr(2, 8)}`,
@@ -15,12 +15,16 @@ const options = {
 };
 
 const client = mqtt.connect(`mqtts://${MQTT_URL}:${MQTT_PORT}`, options);
+
 const TOPICS = [
     '#',
     'mqtt-topic',
     'devices/+/status',
     'sensors/#'
 ];
+
+const lastTelemetryMap = new Map();
+
 // Connect to the MQTT broker
 client.on('connect', () => {
     console.log('✅ Connected to public broker');
@@ -33,7 +37,8 @@ client.on('connect', () => {
         });
     });
 });
-// Handle incoming messages
+
+
 client.on('message', async (topic, message) => {
     try {
         const msg = message.toString();
@@ -45,27 +50,54 @@ client.on('message', async (topic, message) => {
             console.warn('Received non-JSON message, saved as raw data');
         }
 
-        // Lưu vào Firestore
-        const docRef = await db.collection('mqtt_data').add({
-            topic: topic,
-            data: data,
-            timestamp: admin.firestore.FieldValue.serverTimestamp(),
-            processedAt: new Date().toISOString()
-        });
+        const deviceId = data?.device?.id || topic;
+        const currentTemp = data?.data?.temperature;
 
-        console.log(`✅ Saved to Firestore with ID: ${docRef.id}`);
+        let shouldSave = true;
+        const lastEntry = lastTelemetryMap.get(deviceId);
 
-        // Kiểm tra ngưỡng nhiệt độ nếu có
-        if (data.temperature) {
-            if (data.temperature > 37 || data.temperature < 10) {
-                console.warn(`⚠️ Temperature alert: ${data.temperature}°C`);
-                // Có thể thêm xử lý cảnh báo ở đây
+        // check if the current temperature is similar to the last one
+        if (currentTemp !== undefined && lastEntry !== undefined) {
+            const delta = Math.abs(currentTemp - lastEntry.temperature);
+            if (delta < 0.05) {
+                shouldSave = false;
             }
         }
+
+        if (shouldSave) {
+            const docRef = await db.collection('mqtt_data').add({
+                topic: topic,
+                data: data,
+                timestamp: admin.firestore.FieldValue.serverTimestamp(),
+                processedAt: new Date().toISOString()
+            });
+
+            console.log(`✅ Saved to Firestore with ID: ${docRef.id}`);
+
+            // update last telemetry map
+            lastTelemetryMap.set(deviceId, {
+                temperature: currentTemp,
+                time: Date.now()
+            });
+
+            // if temperature is out of range, log a warning
+            if (currentTemp > 37 || currentTemp < 10) {
+                console.warn(`⚠️ Temperature alert: ${currentTemp}°C`);
+                const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
+                await alertRef.push({
+                    temperature: currentTemp,
+                    timestamp: Date.now(),
+                    message: `Nhiệt độ bất thường: ${currentTemp}°C`,
+                    deviceModel: data?.device?.model || 'Unknown model',
+                    deviceType: data?.device?.type || 'Unknown type',
+                    deviceId: deviceId
+                });
+            }
+        }
+
     } catch (error) {
         console.error('🚨 Error processing MQTT message:', error);
     }
-
 });
 // Handle connection errors
 client.on('error', (err) => {
