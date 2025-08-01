@@ -5,9 +5,13 @@ This Node.js project connects to an MQTT broker, captures data from specific top
 ## Prerequisites
 
 - Node.js (v20 or higher)
-- MongoDB (v7 or higher)
-- MQTT Broker (such as Mosquitto)
+
+- Firebase Project (Firestore + Realtime Database enabled)
+
+- MQTT Broker (e.g. Mosquitto)
+
 - Docker (optional)
+
 - Docker Compose (optional)
 
 If you are going to run the project with Docker, it is not necessary to install Node.js and MongoDB, the containers already use images with the necessary installations.
@@ -17,8 +21,8 @@ If you are going to run the project with Docker, it is not necessary to install 
 1. Clone the repository:
 
  ```bash
- git clone https://github.com/gqferreira/mqtt-mongo.git
- cd mqtt-mongo
+ git clone https://github.com/triphandev/be-mqtt-iot.git
+ cd be-mqtt-iot
  ```
 
 1. Install dependencies (only if you intend to run without Docker):
@@ -30,31 +34,38 @@ If you are going to run the project with Docker, it is not necessary to install 
 1. Configure environment variables by creating a `.env` file in the root of the project with the following content:
 
  ```ini
- MQTT_URL=mqtt://test.mosquitto.org
- MQTT_PORT=1883
- MQTT_TOPIC=mqtt-mongo
- MQTT_USERNAME=
- MQTT_PASSWORD=
- MONGODB_URI=mongodb://db-telemetry:27017
- MONGODB_DB=iot
+ # MQTT
+MQTT_URL=mqtt://test.mosquitto.org
+MQTT_PORT=1883
+MQTT_TOPIC=mqtt-firebase
+MQTT_USERNAME=
+MQTT_PASSWORD=
+
+# Firebase Service Account (use ENV for security)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxxxx@your-project-id.iam.gserviceaccount.com
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+
+FIREBASE_DB_URL=https://your-project-id-default-rtdb.asia-southeast1.firebasedatabase.app
  ```
 
 1. Run project (only if you intend to run without Docker):
 
 ```bash
+npm install
 npm run dev
 ```
 
 ## Project Structure
 ```plaintext
-- mqtt-mongo/
+- - mqtt-firebase/
   |- mqtt/
-     |- mqttClient.js
-  |- mongodb/
-     |- mongoClient.js
+     |- mqttClient.js          # MQTT connection and message processing
+  |- firebase/
+     |- firebase.js            # Firebase Admin SDK initialization
   |- routes/
-     |- telemetryRoutes.js
-     |- deviceRoutes.js
+     |- telemetryRoutes.js     # API for telemetry data
+     |- deviceRoutes.js        # API for device management
   |- .env
   |- .gitignore
   |- app.js
@@ -65,6 +76,7 @@ npm run dev
   |- package-lock.json
   |- package.json
   |- swagger.js
+
   
 ```
 
@@ -118,29 +130,68 @@ use iot
 ## Database:
 
 The telemetry collection in the database should be named `telemetry` and have the following structure:
+
+# Devices (Firestore)
 ```javascript
 use iot
-
-db.telemetry.insertOne(
-    {
-        "date": ISODate('2024-06-12T10:09:00Z'),
-        "light": 3500,
-        "temperature": 1900,
-        "device": {
-            "$ref": "device",
-            "$id": ObjectId("000000000000000000000001"),
-            "$db": "iot"
-        }
-    }
-);
+// Collection: devices
+{
+  "channel": "mqtt-firebase",
+  "description": "Environmental light and temperature monitoring system",
+  "status": true,
+  "createdAt": <server timestamp>,
+  "updatedAt": <server timestamp>
+}
 ```
-
-```javascript
-db.device.insertOne(
-    {
-        "channel": 'mqtt-mongo',
-        "description": 'Environmental light and temperature monitoring system',
-        "status": true
+# Telemetry (Firestore)
+// Collection: mqtt_data
+{
+  "topic": "device/sensor/temp_007",
+  "data": {
+    "temperature": 25.7,
+    "device": {
+      "firmware": "v2.1.8",
+      "id": "temp_007",
+      "model": "TI_SENSORTAG",
+      "type": "sensor"
+    },
+    "network": {
+      "latency": 120,
+      "rssi": -53
     }
-);
-```
+  },
+  "timestamp": <server timestamp>,
+  "processedAt": "2025-08-01T03:42:34.795Z"
+}
+
+# Alerts (Realtime Database)
+"alerts": {
+  "temp_007": {
+    "-OABC12345": {
+      "temperature": 38,
+      "timestamp": 1690954320000,
+      "message": "Nhiệt độ bất thường: 38°C",
+      "deviceModel": "TI_SENSORTAG",
+      "deviceType": "sensor",
+      "deviceId": "temp_007"
+    }
+  }
+}
+# Firestore (Client read-only, Server full access)
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+  }
+}
+
+# Realtime Database (Client read-only, Server full access)
+{
+  "rules": {
+    ".read": true,
+    ".write": false
+  }
+}
