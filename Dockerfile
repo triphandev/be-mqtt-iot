@@ -1,8 +1,8 @@
 FROM node:20
 WORKDIR /app-telemetry
 
-COPY package.json package-lock.json app.js config.js swagger.js .env ./
-COPY mongodb ./mongodb
+COPY package.json package-lock.json app.js config.js swagger.js ./
+COPY firebase ./firebase
 COPY mqtt ./mqtt
 COPY routes ./routes
 
