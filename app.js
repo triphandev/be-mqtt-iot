@@ -16,6 +16,6 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(specs));
 
 const port = process.env.PORT;
 app.listen(port, () => {
-    console.log(`Server running at http://localhost:${port}`);
-    console.log(`Documentation available at http://localhost:${port}/api-docs`);
+    console.log(`Server running on port ${port}`);
+    console.log(`Documentation available at /api-docs`);
 });
