@@ -2,7 +2,31 @@
 const express = require('express');
 const router = express.Router();
 const { db } = require('../firebase/firebase');
-
+/**
+ * @openapi
+ * /device:
+ *   get:
+ *     summary: Get all telemetry devices
+ *     description: Returns a list of all registered telemetry devices in the database.
+ *     tags:
+ *       - Device
+ *     responses:
+ *       200:
+ *         description: A list of devices
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: array
+ *               items:
+ *                 type: object
+ *                 properties:
+ *                   deviceId:
+ *                     type: string
+ *                     example: "abc123"
+ *                   name:
+ *                     type: string
+ *                     example: "Temperature Sensor"
+ */
 router.get('/', async (req, res) => {
     try {
         const snapshot = await db.collection('mqtt_data')
