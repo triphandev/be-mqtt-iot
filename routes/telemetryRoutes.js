@@ -3,22 +3,67 @@ const router = express.Router();
 const { db } = require('../firebase/firebase');
 /**
  * @openapi
- * /telemetry/{type}:
+ * /telemetry:
  *   get:
- *     summary: Lấy danh sách telemetry theo loại thiết bị
- *     description: Trả về tối đa 200 bản ghi telemetry mới nhất cho thiết bị thuộc loại chỉ định.
+ *     summary: Lấy danh sách telemetry
+ *     description: |
+ *       Trả về danh sách telemetry mới nhất từ Firestore.  
+ *       Có thể lọc theo:
+ *       - Loại thiết bị (`type`)
+ *       - ID thiết bị (`deviceId`)
+ *       - Khoảng thời gian (`fromDate`, `toDate`) dạng milliseconds kể từ 1/1/1970 UTC  
+ *       - Giới hạn số bản ghi (`limit`)
+ *       
+ *       Nếu không truyền `fromDate` và `toDate`:
+ *       - `fromDate` mặc định = 00:00 hôm nay
+ *       - `toDate` mặc định = thời điểm hiện tại
+ *       
+ *       Nếu không truyền `limit`, mặc định là 200 bản ghi.
  *     tags:
  *       - Device
  *     parameters:
- *       - in: path
+ *       - in: query
  *         name: type
- *         required: true
+ *         required: false
  *         schema:
  *           type: string
  *         description: "Loại thiết bị (ví dụ: sensor, actuator, ...)"
+ *       - in: query
+ *         name: deviceId
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: "ID của thiết bị (ví dụ: dev001)"
+ *       - in: query
+ *         name: fromDate
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           format: int64
+ *         description: |
+ *           Thời gian bắt đầu lọc (milliseconds kể từ 1/1/1970 UTC).  
+ *           Mặc định: 00:00 hôm nay.
+ *           Ví dụ: 1735689600000
+ *       - in: query
+ *         name: toDate
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           format: int64
+ *         description: |
+ *           Thời gian kết thúc lọc (milliseconds kể từ 1/1/1970 UTC).  
+ *           Mặc định: Thời điểm hiện tại.
+ *           Ví dụ: 1735776000000
+ *       - in: query
+ *         name: limit
+ *         required: false
+ *         schema:
+ *           type: integer
+ *           default: 200
+ *         description: "Giới hạn số bản ghi trả về (mặc định 200)."
  *     responses:
  *       200:
- *         description: Danh sách telemetry của thiết bị
+ *         description: Danh sách telemetry
  *         content:
  *           application/json:
  *             schema:
@@ -29,28 +74,22 @@ const { db } = require('../firebase/firebase');
  *                   temperature:
  *                     type: number
  *                     nullable: true
- *                     example: 28.5
  *                   deviceId:
  *                     type: string
  *                     nullable: true
- *                     example: "dev001"
  *                   model:
  *                     type: string
  *                     nullable: true
- *                     example: "XJ-2024"
  *                   type:
  *                     type: string
  *                     nullable: true
- *                     example: "sensor"
  *                   topic:
  *                     type: string
  *                     nullable: true
- *                     example: "sensors/room01"
  *                   timestamp:
  *                     type: string
  *                     format: date-time
  *                     nullable: true
- *                     example: "2025-08-01T09:30:00Z"
  *       500:
  *         description: Lỗi server
  *         content:
@@ -60,32 +99,61 @@ const { db } = require('../firebase/firebase');
  *               properties:
  *                 message:
  *                   type: string
- *                   example: Lỗi server
+ *                   example: "Server error"
  */
-router.get('/:type', async (req, res) => {
-  const { type } = req.params;
+
+router.get('/', async (req, res) => {
+  const { type, deviceId, fromDate, toDate, limit } = req.query;
 
   try {
-    const snapshot = await db.collection('mqtt_data')
-      .orderBy('timestamp', 'desc')
-      .limit(200)
-      .get();
+    const now = new Date();
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const recordLimit = Number(limit) > 0 ? Number(limit) : 200;
 
-    const filtered = snapshot.docs
-      .map(doc => doc.data())
-      .filter(entry => entry?.data?.device?.type === type)
-      .map(entry => {
-        return {
-          temperature: entry?.data?.data?.temperature || null,
-          deviceId: entry?.data?.device?.id || null,
-          model: entry?.data?.device?.model || null,
-          type: entry?.data?.device?.type || null,
-          topic: entry.topic || null,
-          timestamp: entry.timestamp?.toDate?.() || entry.processedAt || null
-        };
-      });
+    if (!fromDate) {
+      fromDate = startOfToday.getTime(); // ms từ epoch
+    }
+    if (!toDate) {
+      toDate = now.getTime();
+    }
 
-    res.status(200).json(filtered);
+    let query = db.collection('mqtt_data').orderBy('timestamp', 'desc');
+
+    // Filter for date range if provided
+    if (fromDate) {
+      query = query.where('timestamp', '>=', new Date(Number(fromDate)));
+    }
+    if (toDate) {
+      query = query.where('timestamp', '<=', new Date(Number(toDate)));
+    }
+
+    // Limit to 200 records
+    query = query.limit(recordLimit);
+
+    const snapshot = await query.get();
+    let filtered = snapshot.docs.map(doc => doc.data());
+
+    // Filter by type if provided
+    if (type) {
+      filtered = filtered.filter(entry => entry?.data?.device?.type === type);
+    }
+
+    // Filter by deviceId if provided
+    if (deviceId) {
+      filtered = filtered.filter(entry => entry?.data?.device?.id === deviceId);
+    }
+
+    const result = filtered.map(entry => ({
+      temperature: entry?.data?.data?.temperature || null,
+      deviceId: entry?.data?.device?.id || null,
+      model: entry?.data?.device?.model || null,
+      type: entry?.data?.device?.type || null,
+      topic: entry.topic || null,
+      timestamp: entry.timestamp?.toDate?.() || entry.processedAt || null
+    }));
+
+    res.status(200).json(result);
   } catch (e) {
     console.error('Err when fetching telemetry:', e);
     res.status(500).json({ message: 'Server error' });

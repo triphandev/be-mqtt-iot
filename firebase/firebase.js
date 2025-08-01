@@ -1,9 +1,10 @@
+require('dotenv').config();
 const admin = require('firebase-admin');
-const serviceAccount = require('./serviceAccountKeys.json');
+const serviceAccount = JSON.parse(process.env.SERVICE_ACCOUNT);
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: 'https://mqtt-iot-48280-default-rtdb.asia-southeast1.firebasedatabase.app'
+  databaseURL: process.env.FIREBASE_DB_URL
 });
 
 async function insertDevice(device) {
@@ -21,7 +22,6 @@ async function insertDevice(device) {
 
     return true;
   } catch (e) {
-    console.error('Lỗi khi thêm thiết bị:', e);
     return false;
   }
 }

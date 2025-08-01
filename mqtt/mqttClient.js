@@ -41,26 +41,31 @@ client.on('connect', () => {
 
 client.on('message', async (topic, message) => {
     try {
+        const MIN_INTERVAL = 5000;
         const msg = message.toString();
         let data;
         try {
             data = JSON.parse(msg);
         } catch (e) {
             data = { rawData: msg };
-            console.warn('Received non-JSON message, saved as raw data');
         }
 
         const deviceId = data?.device?.id || topic;
         const currentTemp = data?.data?.temperature;
 
         let shouldSave = true;
-        const lastEntry = lastTelemetryMap.get(deviceId);
 
         // check if the current temperature is similar to the last one
-        if (currentTemp !== undefined && lastEntry !== undefined) {
-            const delta = Math.abs(currentTemp - lastEntry.temperature);
-            if (delta < 0.05) {
-                shouldSave = false;
+        if (currentTemp !== undefined) {
+            const lastEntry = lastTelemetryMap.get(deviceId);
+
+            if (lastEntry) {
+                const delta = Math.abs(currentTemp - lastEntry.temperature);
+                const timeDelta = Date.now() - lastEntry.time;
+
+                if (delta < 0.01 && timeDelta < MIN_INTERVAL) {
+                    shouldSave = false;
+                }
             }
         }
 
@@ -72,8 +77,6 @@ client.on('message', async (topic, message) => {
                 processedAt: new Date().toISOString()
             });
 
-            console.log(`✅ Saved to Firestore with ID: ${docRef.id}`);
-
             // update last telemetry map
             lastTelemetryMap.set(deviceId, {
                 temperature: currentTemp,
@@ -82,11 +85,9 @@ client.on('message', async (topic, message) => {
 
             // if temperature is out of range, log a warning
             if (currentTemp > 37 || currentTemp < 10) {
-                console.warn(`⚠️ Temperature alert: ${currentTemp}°C`);
                 const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
                 await alertRef.push({
                     temperature: currentTemp,
-                    timestamp: Date.now(),
                     message: `Nhiệt độ bất thường: ${currentTemp}°C`,
                     deviceModel: data?.device?.model || 'Unknown model',
                     deviceType: data?.device?.type || 'Unknown type',
