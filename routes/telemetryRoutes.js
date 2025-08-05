@@ -53,7 +53,7 @@ const { db } = require('../firebase/firebase');
  *         description: |
  *           End time for filtering (milliseconds since 1/1/1970 UTC).  
  *           Default: Current time.
- *           Example: 1735776000000
+ *           Example: 1754326800000
  *       - in: query
  *         name: limit
  *         required: false
