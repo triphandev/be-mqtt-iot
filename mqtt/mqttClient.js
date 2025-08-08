@@ -1,6 +1,6 @@
 const mqtt = require('mqtt');
 const { MQTT_URL, MQTT_PORT, MQTT_USERNAME, MQTT_PASSWORD } = require('../config');
-const { admin, db, realtimeDb } = require('../firebase/firebase');
+const { handleMqttMessage } = require('./mqttMessageHandler');
 
 const options = {
     clientId: `client_${Math.random().toString(16).substr(2, 8)}`,
@@ -23,131 +23,42 @@ const TOPICS = [
     'sensors/#'
 ];
 
-const lastTelemetryMap = new Map();
-
-// Connect to the MQTT broker
 client.on('connect', () => {
-    console.log('✅ Connected to public broker');
+    console.log('Connected to public broker');
     TOPICS.forEach((topic) => {
         client.subscribe(topic, { qos: 0 }, (err) => {
             if (err) console.error('Subscribe error:', err);
-            else {
-                console.log(`Subscribed to ${topic}`);
-            }
+            else console.log(`Subscribed to ${topic}`);
         });
     });
 });
 
+client.on('message', handleMqttMessage);
 
-client.on('message', async (topic, message) => {
-    try {
-        const MIN_INTERVAL = 5000;
-        const msg = message.toString();
-        let data;
-        try {
-            data = JSON.parse(msg);
-        } catch (e) {
-            data = { rawData: msg };
-        }
-
-        const deviceId = data?.device?.id || topic;
-        const currentTemp = data?.data?.temperature;
-        const currentHumidity = data?.data?.humidity;
-
-        let shouldSave = true;
-
-        // check if the current temperature is similar to the last one
-        if (currentTemp !== undefined || currentHumidity !== undefined) {
-            const lastEntry = lastTelemetryMap.get(deviceId);
-
-            if (lastEntry) {
-                let temperatureDelta = 0;
-                let humidityDelta = 0;
-
-                if (currentTemp !== undefined) {
-                    temperatureDelta = Math.abs(currentTemp - lastEntry.temperature);
-                }
-                if (currentHumidity !== undefined) {
-                    humidityDelta = Math.abs(currentHumidity - lastEntry.humidity);
-                }
-                const timeDelta = Date.now() - lastEntry.time;
-
-                if ((temperatureDelta < 0.01 && humidityDelta < 0.01) && timeDelta < MIN_INTERVAL) {
-                    shouldSave = false;
-                }
-            }
-        }
-
-        if (shouldSave) {
-            const docRef = await db.collection('mqtt_data').add({
-                topic: topic,
-                data: data,
-                timestamp: admin.firestore.FieldValue.serverTimestamp(),
-                processedAt: new Date().toISOString()
-            });
-
-            // update last telemetry map
-            lastTelemetryMap.set(deviceId, {
-                temperature: currentTemp,
-                humidity: currentHumidity,
-                time: Date.now()
-            });
-
-            // if temperature is out of range, log a warning
-            if (currentTemp > 37 || currentTemp < 10) {
-                const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
-                await alertRef.push({
-                    temperature: currentTemp,
-                    humidity: currentHumidity,
-                    message: `Nhiệt độ bất thường: ${currentTemp}°C`,
-                    deviceModel: data?.device?.model || 'Unknown model',
-                    deviceType: data?.device?.type || 'Unknown type',
-                    deviceId: deviceId
-                });
-            }
-            if (currentHumidity > 80 || currentHumidity < 20) {
-                const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
-                await alertRef.push({
-                    humidity: currentHumidity,
-                    message: `Độ ẩm bất thường: ${currentHumidity}%`,
-                    deviceModel: data?.device?.model || 'Unknown model',
-                    deviceType: data?.device?.type || 'Unknown type',
-                    deviceId: deviceId
-                });
-            }
-        }
-
-    } catch (error) {
-        console.error('🚨 Error processing MQTT message:', error);
-    }
-});
-// Handle connection errors
 client.on('error', (err) => {
-    console.error('🚨 Connection error:', err.message);
+    console.error('Connection error:', err.message);
     if (err.code === 'ECONNREFUSED') {
         console.log('1. Kiểm tra broker có đang chạy?');
         console.log('2. Đúng port (8883 cho SSL)?');
     }
 });
 
-// Handle disconnection
 client.on('close', () => {
     console.log('🔌 Disconnected from broker');
 });
 
-// Test connection to MQTT broker
 const testConnection = () => {
     const net = require('net');
     const socket = new net.Socket();
 
     socket.setTimeout(3000);
     socket.connect(8883, 'test.mosquitto.org', () => {
-        console.log('✅ TCP test passed');
+        console.log('TCP test passed');
         socket.destroy();
     });
 
     socket.on('error', (err) => {
-        console.error('❌ TCP test failed:', err.message);
+        console.error('TCP test failed:', err.message);
         console.log('Kiểm tra:');
         console.log('- Firewall/antivirus chặn kết nối?');
         console.log('- Mạng công ty có chặn port?');
