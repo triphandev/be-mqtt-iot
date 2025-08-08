@@ -27,7 +27,6 @@ const lastTelemetryMap = new Map();
 
 // Connect to the MQTT broker
 client.on('connect', () => {
-    console.log('✅ Connected to public broker');
     TOPICS.forEach((topic) => {
         client.subscribe(topic, { qos: 0 }, (err) => {
             if (err) console.error('Subscribe error:', err);
