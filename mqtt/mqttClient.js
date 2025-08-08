@@ -117,7 +117,7 @@ client.on('message', async (topic, message) => {
         }
 
     } catch (error) {
-        console.error('🚨 Error processing MQTT message:', error);
+        console.error('🚨Error processing MQTT message:', error);
     }
 });
 // Handle connection errors
