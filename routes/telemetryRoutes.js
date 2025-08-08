@@ -134,6 +134,7 @@ router.get('/', async (req, res) => {
     }
 
     const result = results.map(entry => ({
+      humidity: entry?.data?.data?.humidity ?? null,
       temperature: entry?.data?.data?.temperature ?? null,
       deviceId: entry?.data?.device?.id ?? null,
       model: entry?.data?.device?.model ?? null,

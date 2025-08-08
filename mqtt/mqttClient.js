@@ -52,18 +52,27 @@ client.on('message', async (topic, message) => {
 
         const deviceId = data?.device?.id || topic;
         const currentTemp = data?.data?.temperature;
+        const currentHumidity = data?.data?.humidity;
 
         let shouldSave = true;
 
         // check if the current temperature is similar to the last one
-        if (currentTemp !== undefined) {
+        if (currentTemp !== undefined || currentHumidity !== undefined) {
             const lastEntry = lastTelemetryMap.get(deviceId);
 
             if (lastEntry) {
-                const delta = Math.abs(currentTemp - lastEntry.temperature);
+                let temperatureDelta = 0;
+                let humidityDelta = 0;
+
+                if (currentTemp !== undefined) {
+                    temperatureDelta = Math.abs(currentTemp - lastEntry.temperature);
+                }
+                if (currentHumidity !== undefined) {
+                    humidityDelta = Math.abs(currentHumidity - lastEntry.humidity);
+                }
                 const timeDelta = Date.now() - lastEntry.time;
 
-                if (delta < 0.01 && timeDelta < MIN_INTERVAL) {
+                if ((temperatureDelta < 0.01 && humidityDelta < 0.01) && timeDelta < MIN_INTERVAL) {
                     shouldSave = false;
                 }
             }
@@ -80,6 +89,7 @@ client.on('message', async (topic, message) => {
             // update last telemetry map
             lastTelemetryMap.set(deviceId, {
                 temperature: currentTemp,
+                humidity: currentHumidity,
                 time: Date.now()
             });
 
@@ -88,7 +98,18 @@ client.on('message', async (topic, message) => {
                 const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
                 await alertRef.push({
                     temperature: currentTemp,
+                    humidity: currentHumidity,
                     message: `Nhiệt độ bất thường: ${currentTemp}°C`,
+                    deviceModel: data?.device?.model || 'Unknown model',
+                    deviceType: data?.device?.type || 'Unknown type',
+                    deviceId: deviceId
+                });
+            }
+            if (currentHumidity > 80 || currentHumidity < 20) {
+                const alertRef = realtimeDb.ref(`alerts/${deviceId}`);
+                await alertRef.push({
+                    humidity: currentHumidity,
+                    message: `Độ ẩm bất thường: ${currentHumidity}%`,
                     deviceModel: data?.device?.model || 'Unknown model',
                     deviceType: data?.device?.type || 'Unknown type',
                     deviceId: deviceId
