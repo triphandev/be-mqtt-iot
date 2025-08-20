@@ -99,7 +99,6 @@ router.get('/:id', async (req, res) => {
       telemetry
     });
   } catch (e) {
-    console.error('Error fetching device detail:', e);
     res.status(500).json({ message: 'Server error' });
   }
 });
