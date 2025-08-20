@@ -1,14 +1,13 @@
 # MQTT with MongoDB
 
-This Node.js project connects to an MQTT broker, captures data from specific topics, and saves it into a MongoDB database. The Node.js project also provides API endpoints for specific queries. This project use Docker container.
+Node.js app connects to MQTT broker, gets data from topics and saves to **Firebase** (Firestore or Realtime Database). The project also provides API for querying and has Swagger UI available. Can be run natively or with Docker.
 
 ## Prerequisites
 
-- Node.js (v20 or higher)
-- MongoDB (v7 or higher)
-- MQTT Broker (such as Mosquitto)
-- Docker (optional)
-- Docker Compose (optional)
+- Node.js v20+
+- Firebase Account and Service Account JSON
+- MQTT Broker (e.g. Mosquitto, can use `test.mosquitto.org`)
+- Docker and Docker Compose (optional)
 
 If you are going to run the project with Docker, it is not necessary to install Node.js and MongoDB, the containers already use images with the necessary installations.
 
@@ -17,8 +16,9 @@ If you are going to run the project with Docker, it is not necessary to install 
 1. Clone the repository:
 
  ```bash
- git clone https://github.com/gqferreira/mqtt-mongo.git
- cd mqtt-mongo
+ git clone https://github.com/triphandev/be-mqtt-iot.git
+ cd be-mqtt-iot
+
  ```
 
 1. Install dependencies (only if you intend to run without Docker):
@@ -30,13 +30,24 @@ If you are going to run the project with Docker, it is not necessary to install 
 1. Configure environment variables by creating a `.env` file in the root of the project with the following content:
 
  ```ini
- MQTT_URL=mqtt://test.mosquitto.org
- MQTT_PORT=1883
- MQTT_TOPIC=mqtt-mongo
- MQTT_USERNAME=
- MQTT_PASSWORD=
- MONGODB_URI=mongodb://db-telemetry:27017
- MONGODB_DB=iot
+# MQTT
+MQTT_URL=mqtt://test.mosquitto.org
+MQTT_PORT=1883
+MQTT_TOPIC=mqtt-topic
+MQTT_USERNAME=
+MQTT_PASSWORD=
+
+# Select DB type: firestore or rtdb
+FIREBASE_DB=firestore
+
+# Service account information (environment variable recommended)
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_CLIENT_EMAIL=firebase-adminsdk-xxx@your-project-id.iam.gserviceaccount.com
+# Note: replace \n correctly when setting in .env
+FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nABC...xyz\n-----END PRIVATE KEY-----\n"
+
+# If using Realtime Database, need more
+FIREBASE_DATABASE_URL=https://your-project-id.firebaseio.com
  ```
 
 1. Run project (only if you intend to run without Docker):
@@ -48,24 +59,28 @@ npm run dev
 ## Project Structure
 ```plaintext
 - mqtt-mongo/
+|- images/
   |- mqtt/
-     |- mqttClient.js
-  |- mongodb/
-     |- mongoClient.js
+  |   |- mqttClient.js
+  |   |- mqttMessageHandler.js
   |- routes/
-     |- telemetryRoutes.js
-     |- deviceRoutes.js
+  |   |- telemetryRoutes.js
+  |   |- device/
+  |   |   |- devices.js
+  |   |   |- deviceDetail.js
+  |   |- notification/
+  |       |- getNotifications.js
+  |       |- markAsRead.js
   |- .env
   |- .gitignore
   |- app.js
   |- config.js
   |- docker-compose.yml
   |- Dockerfile
-  |- LICENCE
-  |- package-lock.json
+  |- LICENSE
   |- package.json
-  |- swagger.js
-  
+  |- package-lock.json
+  |- README.md
 ```
 
 ## Usage with Docker
@@ -113,34 +128,4 @@ If you wish, you can access the database container in interactive mode and use m
 docker exec -it db-telemetry bash
 mongosh
 use iot
-```
-
-## Database:
-
-The telemetry collection in the database should be named `telemetry` and have the following structure:
-```javascript
-use iot
-
-db.telemetry.insertOne(
-    {
-        "date": ISODate('2024-06-12T10:09:00Z'),
-        "light": 3500,
-        "temperature": 1900,
-        "device": {
-            "$ref": "device",
-            "$id": ObjectId("000000000000000000000001"),
-            "$db": "iot"
-        }
-    }
-);
-```
-
-```javascript
-db.device.insertOne(
-    {
-        "channel": 'mqtt-mongo',
-        "description": 'Environmental light and temperature monitoring system',
-        "status": true
-    }
-);
 ```
