@@ -58,7 +58,6 @@ router.get('/', async (req, res) => {
 
         res.status(200).json(devices);
     } catch (e) {
-        console.error('Error fetching devices:', e);
         res.status(500).json({ message: 'Server error' });
     }
 });

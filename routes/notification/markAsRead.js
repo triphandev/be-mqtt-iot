@@ -48,7 +48,6 @@ router.patch('/:id/read', async (req, res) => {
     await ref.update({ read: true });
     res.status(200).json({ status: 'success', message: 'Marked as read' });
   } catch (e) {
-    console.error('Error updating notification status:', e);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 });
