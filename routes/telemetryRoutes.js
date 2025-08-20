@@ -145,7 +145,6 @@ router.get('/', async (req, res) => {
 
     res.status(200).json(result);
   } catch (e) {
-    console.error('Error when fetching telemetry:', e);
     res.status(500).json({ message: e.message, stack: e.stack });
   }
 });

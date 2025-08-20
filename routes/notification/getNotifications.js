@@ -67,7 +67,6 @@ router.get('/', async (req, res) => {
 
     res.status(200).json({ status: 'success', count: data.length, data });
   } catch (e) {
-    console.error('Error fetching notifications:', e);
     res.status(500).json({ status: 'error', message: 'Server error' });
   }
 });
