@@ -1,17 +1,20 @@
 {
   "name": "iot",
-  "version": "1.0.0",
-  "description": "Project used in the classroom to exemplify a small telemetry, connecting to an MQTT broker, saving the data in a MongoDB database and providing some API endpoints.",
+  "version": "2.0.0",
+  "description": "Telemetry over MQTT with Firebase backend (Firestore/Realtime Database). Node.js app connects to MQTT broker, stores data in Firebase, and exposes REST APIs.",
   "main": "index.js",
   "scripts": {
-    "dev": "node app.js"
+    "dev": "node app.js",
+    "start": "node app.js"
   },
   "keywords": [
     "telemetry",
     "mqtt",
     "node.js",
     "api",
-    "mongodb"
+    "firebase",
+    "firestore",
+    "realtime-database"
   ],
   "author": "Gustavo Ferreira",
   "license": "ISC",
@@ -20,7 +23,6 @@
     "express": "^4.21.2",
     "firebase-admin": "^13.4.0",
     "joi": "17.13.1",
-    "mongodb": "6.7.0",
     "mqtt": "5.7.0",
     "os": "0.1.2",
     "swagger-jsdoc": "6.2.8",
