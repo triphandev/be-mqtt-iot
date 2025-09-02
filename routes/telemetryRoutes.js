@@ -59,7 +59,7 @@ const { db } = require('../firebase/firebase');
  *         required: false
  *         schema:
  *           type: integer
- *          description: "Limit the number of returned records. If not provided, all records will be returned."
+ *         description: "Limit the number of returned records. If not provided, all records will be returned."
  *     responses:
  *       200:
  *         description: Telemetry list
@@ -119,7 +119,7 @@ router.get('/', async (req, res) => {
     query = query.orderBy('timestamp', 'desc');
 
     // Only apply limit if it's provided and greater than 0
-     if (limit && Number(limit) > 0) {
+    if (limit && Number(limit) > 0) {
       query = query.limit(Number(limit));
     }
 
