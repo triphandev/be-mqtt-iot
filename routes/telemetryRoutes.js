@@ -59,8 +59,7 @@ const { db } = require('../firebase/firebase');
  *         required: false
  *         schema:
  *           type: integer
- *           default: 200
- *         description: "Limit the number of returned records (default 200)."
+ *          description: "Limit the number of returned records. If not provided, all records will be returned."
  *     responses:
  *       200:
  *         description: Telemetry list
