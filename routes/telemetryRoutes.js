@@ -18,7 +18,7 @@ const { db } = require('../firebase/firebase');
  *       - `fromDate` defaults to 00:00 today
  *       - `toDate` defaults to the current time
  *       
- *       If `limit` is not provided, the default is 200 records.
+ *       If `limit` is not provided, all records will be returned.
  *     tags:
  *       - Device
  *     parameters:
@@ -119,9 +119,10 @@ router.get('/', async (req, res) => {
     // Order by
     query = query.orderBy('timestamp', 'desc');
 
-    // Default limit is 200
-    const recordLimit = Number(limit) > 0 ? Number(limit) : 200;
-    query = query.limit(recordLimit);
+    // Only apply limit if it's provided and greater than 0
+     if (limit && Number(limit) > 0) {
+      query = query.limit(Number(limit));
+    }
 
     const snapshot = await query.get();
     let results = snapshot.docs.map(doc => doc.data());
