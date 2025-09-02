@@ -36,7 +36,7 @@ const handleMqttMessage = async (topic, message) => {
 
         const timeDelta = Date.now() - lastEntry.time;
 
-        if ((temperatureDelta < 0.01 && humidityDelta < 0.01) && timeDelta < MIN_INTERVAL) {
+        if ((temperatureDelta < 0.1 && humidityDelta < 0.1) && timeDelta < MIN_INTERVAL) {
           shouldSave = false;
         }
       } else {
